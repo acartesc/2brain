@@ -206,6 +206,7 @@ label{font-size:10px;color:var(--muted);display:block;margin-bottom:4px;}
     <div class="nav-s">
       <div class="nav-i" data-page="import">📥 Importar</div>
       <div class="nav-i" data-page="export">📤 Exportar</div>
+      <div class="nav-i" data-page="backup">💾 Backup</div>
     </div>
   </aside>
 
@@ -330,6 +331,23 @@ label{font-size:10px;color:var(--muted);display:block;margin-bottom:4px;}
         <div class="eb" id="exp-box"></div>
       </div>
 
+      <!-- BACKUP -->
+      <div class="page" id="page-backup">
+        <div class="g2">
+          <div class="card">
+            <div class="ct">Descargar backup</div>
+            <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Exporta todos tus datos como archivo JSON. Guárdalo en un lugar seguro para restaurar en otro navegador o dispositivo.</p>
+            <button class="btn bp" onclick="downloadBackup()">⬇️ Descargar backup.json</button>
+          </div>
+          <div class="card">
+            <div class="ct">Restaurar backup</div>
+            <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Selecciona un archivo backup.json para restaurar tus datos. <strong style="color:var(--warn)">⚠️ Reemplaza los datos actuales.</strong></p>
+            <input type="file" id="restore-file" accept=".json" style="margin-bottom:10px;" onchange="restoreBackup(this)">
+            <div id="restore-result" style="font-size:11px;color:var(--accent);font-family:var(--mono);min-height:18px;"></div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /content -->
   </main>
 </div>
@@ -438,7 +456,7 @@ function showPage(id, navEl){
   if(page) page.classList.add('active');
   if(navEl) navEl.classList.add('active');
   else { const ni=document.querySelector(`.nav-i[data-page="${id}"]`); if(ni) ni.classList.add('active'); }
-  const titles={dashboard:'Dashboard',tasks:'Tareas',today:'Hoy',weight:'Peso',expenses:'Gastos',import:'Importar',export:'Exportar'};
+  const titles={dashboard:'Dashboard',tasks:'Tareas',today:'Hoy',weight:'Peso',expenses:'Gastos',import:'Importar',export:'Exportar',backup:'Backup'};
   document.getElementById('topbar-title').textContent=titles[id]||id;
   if(id==='dashboard') renderDashboard();
   if(id==='tasks') renderTasks();
@@ -633,6 +651,38 @@ function genExport(){
 }
 function copyExp(){ navigator.clipboard.writeText(document.getElementById('exp-box').textContent).then(()=>toast('¡Copiado!')); }
 function exportState(){ showPage('export'); genExport(); }
+
+// ─── BACKUP / RESTORE ─────────────────────────────────
+function downloadBackup(){
+  const data={tasks,weightLog,expenses,counters,exportedAt:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`2brain-backup-${today()}.json`; a.click();
+  URL.revokeObjectURL(url);
+  toast('Backup descargado ✓');
+}
+async function restoreBackup(input){
+  const file=input.files[0]; if(!file) return;
+  const res=document.getElementById('restore-result');
+  try{
+    const text=await file.text();
+    const data=JSON.parse(text);
+    if(!data.tasks||!Array.isArray(data.tasks)) throw new Error('Archivo inválido');
+    tasks=data.tasks||[];
+    weightLog=data.weightLog||[];
+    expenses=data.expenses||[];
+    counters=data.counters||{};
+    await persist('2b_tasks',tasks);
+    await persist('2b_weight',weightLog);
+    await persist('2b_expenses',expenses);
+    await persist('2b_counters',counters);
+    updateBadge(); renderDashboard();
+    res.textContent=`✓ Restaurado: ${tasks.length} tareas, ${weightLog.length} pesos, ${expenses.length} gastos`;
+    toast('Backup restaurado ✓');
+    input.value='';
+  }catch(e){res.textContent='⚠️ Error: archivo inválido';}
+}
 
 // ─── MODAL / TOAST ────────────────────────────────────
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
